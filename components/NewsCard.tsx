@@ -5,10 +5,12 @@ import { NewsArticle } from '../types';
 interface NewsCardProps {
   article: NewsArticle;
   isHero?: boolean;
+  onArticleClick?: (category: string) => void;
 }
 
-const NewsCard: React.FC<NewsCardProps> = ({ article, isHero = false }) => {
+const NewsCard: React.FC<NewsCardProps> = ({ article, isHero = false, onArticleClick }) => {
   const handleClick = () => {
+    if (onArticleClick) onArticleClick(article.category);
     window.open(article.url, '_blank', 'noopener,noreferrer');
   };
 

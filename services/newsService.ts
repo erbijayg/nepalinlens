@@ -1,20 +1,17 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { NewsArticle, NewsCategory } from "../types";
+import { NewsArticle, NewsCategory, NewsSource } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
-export async function fetchNewsByCategory(category: NewsCategory): Promise<NewsArticle[]> {
+export async function fetchNewsByCategory(category: NewsCategory, sources: NewsSource[]): Promise<NewsArticle[]> {
   try {
-    const prompt = `Find the 6 latest news articles from Nepal in the category: ${category}. 
-    Focus on reputable sources like Kantipur (ekantipur.com), OnlineKhabar, Setopati, Ratopati, and MyRepublica.
-    For each article, provide:
-    1. A catchy title.
-    2. A short summary (2 sentences).
-    3. The exact source name.
-    4. The publication date or time if available.
+    const enabledSources = sources.filter(s => s.enabled).map(s => s.name).join(", ");
+    const prompt = `Find the 6 most recent specific news ARTICLES from Nepal in the category: ${category}. 
+    STRICTLY prioritize these sources: ${enabledSources}.
     
-    IMPORTANT: Provide the information clearly. I will extract the URLs from the grounding metadata.`;
+    For each result, I need the DIRECT DEEP LINK to the specific news article, NOT the homepage of the website.
+    Provide the information clearly. I will extract the exact article URLs from the grounding metadata.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -25,29 +22,27 @@ export async function fetchNewsByCategory(category: NewsCategory): Promise<NewsA
     });
 
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const text = response.text || '';
-    
-    // We attempt to map the grounding chunks to articles.
-    // Since Gemini returns structured text and grounding metadata, we'll parse the text
-    // and match it with the URIs provided by grounding.
-    
-    const lines = text.split('\n').filter(l => l.trim().length > 5);
     const articles: NewsArticle[] = [];
 
-    // Simple heuristic to extract articles based on grounding chunks
     groundingChunks.forEach((chunk, index) => {
-      if (chunk.web && index < 8) { // Limit to top results
-        const title = chunk.web.title || `News from ${new URL(chunk.web.uri).hostname}`;
-        articles.push({
-          id: Math.random().toString(36).substr(2, 9),
-          title: title.split(' - ')[0], // Clean title
-          excerpt: "Read the latest updates regarding this story on the official portal.",
-          source: new URL(chunk.web.uri).hostname.replace('www.', ''),
-          url: chunk.web.uri,
-          publishedAt: new Date().toLocaleDateString(),
-          category: category,
-          thumbnail: `https://picsum.photos/seed/${index + category}/800/450`
-        });
+      if (chunk.web && index < 10) { 
+        const url = chunk.web.uri;
+        // Basic check to avoid homepage links if possible
+        const isLikelyArticle = url.split('/').length > 4 || url.includes('.html') || url.includes('?');
+        
+        if (isLikelyArticle) {
+          const title = chunk.web.title || `News Story`;
+          articles.push({
+            id: Math.random().toString(36).substr(2, 9),
+            title: title.split(' - ')[0].split(' | ')[0], // Clean title
+            excerpt: "Read the full specific report on the original portal by clicking below.",
+            source: new URL(url).hostname.replace('www.', ''),
+            url: url,
+            publishedAt: new Date().toLocaleDateString(),
+            category: category,
+            thumbnail: `https://picsum.photos/seed/${encodeURIComponent(url)}/800/450`
+          });
+        }
       }
     });
 
@@ -58,9 +53,11 @@ export async function fetchNewsByCategory(category: NewsCategory): Promise<NewsA
   }
 }
 
-export async function searchNews(query: string): Promise<NewsArticle[]> {
+export async function searchNews(query: string, sources: NewsSource[]): Promise<NewsArticle[]> {
   try {
-    const prompt = `Search for news articles related to "${query}" from Nepal's top news portals (Kantipur, OnlineKhabar, etc.).`;
+    const enabledSources = sources.filter(s => s.enabled).map(s => s.name).join(", ");
+    const prompt = `Search for specific recent news articles related to "${query}" from these Nepali portals: ${enabledSources}. 
+    I need the direct article URLs.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -78,12 +75,12 @@ export async function searchNews(query: string): Promise<NewsArticle[]> {
         articles.push({
           id: Math.random().toString(36).substr(2, 9),
           title: chunk.web.title || query,
-          excerpt: "Search result from Nepal In Lens grounding engine.",
+          excerpt: "Search result with direct link to the full story.",
           source: new URL(chunk.web.uri).hostname.replace('www.', ''),
           url: chunk.web.uri,
           publishedAt: new Date().toLocaleDateString(),
           category: NewsCategory.LATEST,
-          thumbnail: `https://picsum.photos/seed/${index + query}/800/450`
+          thumbnail: `https://picsum.photos/seed/${encodeURIComponent(chunk.web.uri)}/800/450`
         });
       }
     });

@@ -20,9 +20,16 @@ export enum NewsCategory {
   WORLD = 'World'
 }
 
-export interface GroundingChunk {
-  web?: {
-    uri: string;
-    title: string;
-  };
+export interface NewsSource {
+  id: string;
+  name: string;
+  domain: string;
+  enabled: boolean;
+}
+
+export interface UserProfile {
+  name: string;
+  email: string;
+  avatar: string;
+  interests: Record<string, number>;
 }
