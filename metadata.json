@@ -1,0 +1,5 @@
+{
+  "name": "Nepal In Lens",
+  "description": "A modern news aggregator for Nepal, pulling real-time stories from top portals using Gemini AI Search Grounding.",
+  "requestFramePermissions": []
+}
